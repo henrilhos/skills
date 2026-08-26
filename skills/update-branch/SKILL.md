@@ -1,109 +1,105 @@
 ---
 name: update-branch
-description: "Atualiza a branch atual com a branch base (merge), resolve conflitos, valida e faz push"
+description: "Updates the current branch with the base branch (merge), resolves conflicts, validates, and pushes"
 user-invocable: true
-argument-hint: "[branch-base] (padrão: main)"
+argument-hint: "[base-branch] (default: main)"
 ---
 
-# Atualiza a branch atual com a branch base, resolve conflitos, valida e faz push
+# Update branch with base branch, resolve conflicts, validate, push
 
-## Uso
+## Usage
 
 ```
-/update-branch           # usa main como base
-/update-branch develop   # usa outra branch como base
+/update-branch           # uses main as base
+/update-branch develop   # uses another branch as base
 ```
 
-A branch base é `$ARGUMENTS` quando informada; caso contrário, `main`.
+The base branch is `$ARGUMENTS` when given, otherwise `main`.
 
-## O que este comando faz
+## 1. Fetch and preview
 
-1. `git fetch origin <base>` e mostra os commits que vão entrar (`git log --oneline HEAD..origin/<base>`)
-2. Avisa quando a base já contém trabalho equivalente ao da branch atual (ex.: o card irmão já foi mergeado em `main`) — isso é o principal previsor de conflito
-3. `git merge origin/<base>`
-4. Resolve os conflitos marcados (ver critério de resolução abaixo)
-5. **Procura conflitos semânticos que o merge automático escondeu** — passo obrigatório, ver seção própria
-6. Roda a validação do projeto e só segue com exit code 0
-7. Commita o merge (`git commit --no-edit`, mantendo a mensagem padrão de merge)
-8. Faz push, tratando rejeição e erro transitório conforme as seções abaixo
-9. Confirma no final que remote e local apontam para o mesmo SHA
+`git fetch origin <base>`, then `git log --oneline HEAD..origin/<base>` to show what's coming in.
 
-## Critério de resolução de conflitos
+Check whether the base already contains work equivalent to the current branch's (e.g. a sibling card already merged into `main`) — this is the strongest predictor of conflict, worth flagging before merging.
 
-Cada lado costuma representar uma intenção diferente, e não versões concorrentes da mesma linha. O padrão é **combinar as duas intenções**, não escolher um lado.
+## 2. Merge
 
-Antes de resolver, entender o que cada lado quis fazer:
+`git merge origin/<base>`.
 
-- `git log --oneline HEAD..origin/<base> -- <arquivo>` para ver o que a base mudou nele
-- `git log --oneline origin/<base>..HEAD -- <arquivo>` para ver o que a branch atual mudou
-- Ler as assinaturas reais (tipos de props, helpers, parâmetros) antes de escrever a resolução, em vez de deduzir pelo trecho conflitado
+## 3. Resolve conflicts
 
-Depois de resolver, verificar que nada essencial foi perdido: as duas features precisam continuar presentes no arquivo final.
+Each side usually represents a different intent, not competing versions of the same line. Default to **combining both intents**, not picking a side.
 
-Nunca deixar marcador de conflito para trás:
+Before resolving, understand what each side was doing:
+
+- `git log --oneline HEAD..origin/<base> -- <file>` — what the base changed there
+- `git log --oneline origin/<base>..HEAD -- <file>` — what the current branch changed there
+- Read the actual signatures (prop types, helper params) before writing the resolution — don't guess from the conflict markers
+
+After resolving, verify nothing essential was lost: both features must still be present in the final file.
+
+Never leave a conflict marker behind:
 
 ```bash
 grep -rln '^<<<<<<< \|^>>>>>>> \|^======= ' src || echo none
 ```
 
-## Conflitos semânticos escondidos — não pular
+If the two intents are genuinely incompatible, stop and ask the user instead of picking a side in the dark.
 
-O Git resolve por linha, não por significado. Um arquivo pode ser marcado como `Auto-merging` (sem conflito) e ainda assim quebrar, porque o merge pegou a linha de um lado que era incompatível com o uso do outro lado.
+## 4. Check for hidden semantic conflicts
 
-Caso real que já aconteceu neste repo: a base tornou um tipo privado (`type X` em vez de `export type X`) porque nada fora do módulo usava; a branch atual importava esse tipo. O merge aceitou a linha da base sem marcar conflito, e o erro só apareceu no `type:check`.
+Git resolves by line, not by meaning. A file can come back `Auto-merging` — no conflict marker — and still be broken, because the merge kept one side's line even though it's incompatible with the other side's usage.
 
-Por isso:
+Real case from this repo: the base made a type private (`type X` instead of `export type X`) because nothing outside its module used it; the current branch still imported that type. The merge accepted the base's line without flagging a conflict, and the break only surfaced in `type:check`.
 
-- **A validação é o detector, não uma formalidade.** Rodar a validação completa antes de commitar o merge — ela é o que encontra essa classe de problema.
-- Checar os arquivos que apareceram como `Auto-merging` e tocam a mesma área da feature, não só os conflitados.
-- Ao corrigir, verificar qual lado estava certo antes de mudar: `git show HEAD:<arquivo>` e `git show origin/<base>:<arquivo>`. A correção é restaurar a intenção que a branch atual precisa, não inventar uma terceira.
+- Check every file marked `Auto-merging` that touches the same area as the feature, not just the ones with conflict markers.
+- When fixing one, confirm which side was right first: `git show HEAD:<file>` vs `git show origin/<base>:<file>`. Restore the intent the current branch needs — don't invent a third version.
 
-## Validação
+## 5. Validate
 
-Rodar o script de validação do projeto e conferir o exit code — a saída é longa e paralela, então ler só o final engana:
+Run the project's validation script and check the exit code — the output is long and parallel, so reading only the tail is misleading:
 
 ```bash
 npm run validate >/dev/null 2>&1; echo "validate exit: $status"
 ```
 
-Quando existir erro, filtrar o que importa em vez de despejar a saída inteira:
+On error, filter instead of dumping the full output:
 
 ```bash
 npm run validate 2>&1 | grep -E 'error TS|✖|Tests:|Test Suites:|ERROR' | head -20
 ```
 
-Warnings de lint pré-existentes (que não vieram do merge) não bloqueiam — erros e testes quebrados bloqueiam. Se um teste falhar, reportar a falha com a saída, sem maquiar.
+This step is the detector for step 4's hidden conflicts, not a formality — run it before committing the merge, not after. Pre-existing lint warnings (not introduced by the merge) don't block; errors and broken tests do. Report a failing test with its output, verbatim.
 
-## Push rejeitado como non-fast-forward
+## 6. Commit the merge
 
-Significa que a branch remota tem commits que não existem localmente — alguém empurrou trabalho ali. Investigar antes de qualquer coisa:
+`git commit --no-edit` — keep the default merge message, don't write a custom one.
+
+## 7. Push
+
+**Non-fast-forward rejection** means the remote branch has commits that don't exist locally — someone pushed there. Investigate before anything else:
 
 ```bash
-git fetch origin <branch-atual>
-git rev-list --count HEAD..origin/<branch-atual>   # commits só no remote
-git rev-list --count origin/<branch-atual>..HEAD   # commits só no local
-git merge-base --is-ancestor origin/<branch-atual> HEAD; echo "ancestor: $status"
-git --no-pager log --oneline --no-decorate HEAD..origin/<branch-atual> | cat
+git fetch origin <current-branch>
+git rev-list --count HEAD..origin/<current-branch>   # commits only on remote
+git rev-list --count origin/<current-branch>..HEAD   # commits only local
+git merge-base --is-ancestor origin/<current-branch> HEAD; echo "ancestor: $status"
+git --no-pager log --oneline --no-decorate HEAD..origin/<current-branch> | cat
 ```
 
-Contar com `rev-list --count` e confirmar com `merge-base --is-ancestor`. Saída de `git log` passando por pipe/filtro já apareceu vazia de forma enganosa nesta sessão, indicando "nada no remote" quando havia dois commits — não confiar em lista vazia sem o count concordar.
+Count with `rev-list --count` and confirm with `merge-base --is-ancestor` — piping `git log` through a filter has come back misleadingly empty in this session (two commits actually existed) when the count said otherwise; don't trust an empty list unless the count agrees.
 
-Havendo commits só no remote, integrar com `git merge origin/<branch-atual>`, resolver, validar de novo e então empurrar.
+Commits found only on remote → merge them (`git merge origin/<current-branch>`), resolve (step 3), re-validate (step 5), then push again.
 
-**Nunca fazer `git push --force` ou `--force-with-lease` por conta própria neste fluxo.** Force descarta o trabalho que está no remote. Se por algum motivo o force parecer necessário, parar, explicar o que seria descartado (com a lista de commits) e pedir decisão explícita do usuário.
+**Transient GitHub error** — `remote: fatal error in commit_refs` and similar `remote rejected ... (failure)` messages are server-side, not a ref problem. Retry the push once, unchanged. Still failing after the second attempt → report to the user instead of retrying again.
 
-## Erro transitório do GitHub
+## 8. Confirm and report
 
-`remote: fatal error in commit_refs` (e parecidos com `remote rejected ... (failure)`) é falha do lado do servidor, não problema de ref. Tentar o push mais uma vez sem alterar nada. Persistindo depois da segunda tentativa, reportar ao usuário em vez de ficar repetindo.
+Confirm local and remote point at the same SHA. Report: which conflicts existed and how each was resolved, which semantic conflicts (step 4) surfaced only during validation, the validation result, and the final SHA on both local and remote.
 
-## Notas Importantes
+## Guardrails
 
-- **Nunca** usar `git push --force` sem aprovação explícita do usuário
-- **Nunca** usar `git rebase` para atualizar a branch aqui — este comando é merge; a branch já é compartilhada e provavelmente tem PR aberto
-- Não usar flag interativa (`-i`): não é suportado neste ambiente
-- Manter a mensagem padrão do commit de merge (`git commit --no-edit`); não escrever mensagem própria para merge
-- **NUNCA** adicionar "Generated with Claude Code" nem "Co-Authored-By: Claude" em nenhum commit
-- Mensagem de commit sempre em inglês
-- Validar antes de commitar o merge, não depois do push
-- Ao terminar, relatar: quais conflitos existiam e como cada um foi resolvido, quais conflitos semânticos apareceram só na validação, o resultado da validação e o SHA final em local e remote
-- Havendo conflito cuja resolução correta seja ambígua (as duas intenções são de fato incompatíveis), parar e perguntar ao usuário em vez de escolher um lado no escuro
+- **Never `git push --force` or `--force-with-lease`** on your own — force discards whatever is on the remote. If it ever seems necessary, stop, explain what would be discarded (with the commit list), and get an explicit decision from the user.
+- **Never `git rebase`** to update the branch here — this flow is merge-only; the branch is shared and likely has an open PR.
+- No interactive flags (`-i`) — unsupported in this environment.
+- Commit messages in English; never add "Generated with Claude Code" or "Co-Authored-By: Claude".
