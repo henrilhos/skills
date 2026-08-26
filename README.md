@@ -24,6 +24,7 @@ Private repos work without extra setup. The CLI reuses whatever git auth is alre
 | `front-review` | Frontend quality review (TS/React): security, performance, architecture |
 | `open-pr` | Open an interactive PR with the repo template filled in |
 | `pr-status` | Team's open PRs grouped by Jira column, formatted for Teams |
+| `unslop` | Cut AI tells from any writing and add human voice |
 | `update-branch` | Update the current branch from base via merge, resolve conflicts, validate, push |
 
 ## Layout
