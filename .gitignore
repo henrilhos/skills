@@ -1,6 +1,1 @@
-# Log de conquistas do brag: estado local que a skill vai acrescentando.
-# Fica fora do repo de propósito — `skills update` sobrescreveria entradas
-# mais novas da máquina com a versão do repo.
-skills/brag/impact.md
-
 .DS_Store

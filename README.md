@@ -38,6 +38,7 @@ Um diretório por skill, cada um com `SKILL.md` (frontmatter `name` + `descripti
 ## Notas
 
 - Todas as skills têm `user-invocable: true`, então continuam acessíveis como `/<nome>` no Claude Code — é assim que `back-review`, `commit`, `front-review`, `open-pr`, `pr-status` e `update-branch` viviam antes, como slash commands em `~/.claude/commands/`.
-- `brag` lê `config.json` do próprio diretório da skill. O `config.json` aqui já vem preenchido; `config.json.example` é o template genérico que o `SKILL.md` referencia.
-- `skills/brag/impact.md` está no `.gitignore` de propósito. É estado local que a skill vai acrescentando ao longo do tempo, e versionar aqui faria `skills update` sobrescrever entradas mais novas da máquina. Vale backup separado.
+- `brag` lê `config.json` do próprio diretório da skill. O `config.json` aqui já vem preenchido; `config.json.example` é o template genérico que o `SKILL.md` referencia. Como ele é versionado, edição local nele é desfeita no próximo `skills update` — mexa aqui no repo.
+- **`skills update` apaga o diretório da skill e recopia.** Qualquer arquivo que a skill escreva dentro do próprio diretório é destruído no update, inclusive o que estiver no `.gitignore` (verificado na prática, não é teoria). Por isso o `brag` foi patcheado: `impact.md` e `developer-value.md` moraram em `$SKILL_DIR` no original e agora moram em `$STATE_DIR` = `~/.claude/brag/`, fora do alcance do update. Se você atualizar o `brag` a partir do upstream, reaplique esse patch — são 3 blocos no `SKILL.md`.
+- Estado local do `brag` (`~/.claude/brag/`) não é versionado aqui e não sincroniza entre máquinas. Vale backup separado.
 - `front-review` usa a sintaxe `` !`comando` `` de injeção de contexto, herdada de quando era slash command. Se em algum momento ela deixar de ser expandida, o agente ainda lê a instrução — só perde o pré-cálculo da lista de arquivos.

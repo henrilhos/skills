@@ -129,7 +129,11 @@ SKILL_DIR="$HOME/.claude/skills/brag"
 if [[ -L "$SKILL_DIR" ]]; then
   SKILL_DIR="$(readlink "$SKILL_DIR")"
 fi
-IMPACT_PATH="$SKILL_DIR/impact.md"
+# Estado local vive FORA do skill dir: `skills update` apaga e recopia
+# ~/.claude/skills/brag inteiro, o que levaria estes arquivos com ele.
+STATE_DIR="$HOME/.claude/brag"
+mkdir -p "$STATE_DIR"
+IMPACT_PATH="$STATE_DIR/impact.md"
 ```
 
 ### `/brag impact` — View Impact Document
@@ -223,7 +227,11 @@ SKILL_DIR="$HOME/.claude/skills/brag"
 if [[ -L "$SKILL_DIR" ]]; then
   SKILL_DIR="$(readlink "$SKILL_DIR")"
 fi
-VALUE_PATH="$SKILL_DIR/developer-value.md"
+# Estado local vive FORA do skill dir: `skills update` apaga e recopia
+# ~/.claude/skills/brag inteiro, o que levaria estes arquivos com ele.
+STATE_DIR="$HOME/.claude/brag"
+mkdir -p "$STATE_DIR"
+VALUE_PATH="$STATE_DIR/developer-value.md"
 ```
 
 ### `/brag value` — View Developer Value Document
@@ -355,8 +363,12 @@ SKILL_DIR="$HOME/.claude/skills/brag"
 if [[ -L "$SKILL_DIR" ]]; then
   SKILL_DIR="$(readlink "$SKILL_DIR")"
 fi
-IMPACT_PATH="$SKILL_DIR/impact.md"
-VALUE_PATH="$SKILL_DIR/developer-value.md"
+# Estado local vive FORA do skill dir: `skills update` apaga e recopia
+# ~/.claude/skills/brag inteiro, o que levaria estes arquivos com ele.
+STATE_DIR="$HOME/.claude/brag"
+mkdir -p "$STATE_DIR"
+IMPACT_PATH="$STATE_DIR/impact.md"
+VALUE_PATH="$STATE_DIR/developer-value.md"
 ```
 
 2. Review the deliverables from the "Shipped" and "Invested in the Future" sections of the generated report.
