@@ -19,7 +19,7 @@ Private repos work without extra setup. The CLI reuses whatever git auth is alre
 | Skill | What it does |
 | --- | --- |
 | `backend-review` | Review a backend PR (PHP/Laravel), by ID or PR URL |
-| `commit` | Conventional commits, grouped by logical unit |
+| `commit` | Atomic conventional commits in English, split by default |
 | `create-jira-task` | Create Jira issues in the DEV project, filling the required `customfield_11412` field |
 | `deslop` | Remove AI-generated code slop and clean up code style against the diff |
 | `frontend-review` | Frontend quality review (TS/React): security, performance, architecture |
