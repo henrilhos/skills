@@ -21,6 +21,7 @@ Private repos work without extra setup. The CLI reuses whatever git auth is alre
 | `back-review` | Review a backend PR (PHP/Laravel), by ID or PR URL |
 | `commit` | Conventional commits, grouped by logical unit |
 | `create-jira-task` | Create Jira issues in the DEV project, filling the required `customfield_11412` field |
+| `deslop` | Remove AI-generated code slop and clean up code style against the diff |
 | `front-review` | Frontend quality review (TS/React): security, performance, architecture |
 | `open-pr` | Open an interactive PR with the repo template filled in |
 | `pr-status` | Team's open PRs grouped by Jira column, formatted for Teams |
