@@ -20,7 +20,7 @@ Without `DIRECTORY`, ask which repository to use before running any `gh` command
 
 - Directory given as an argument → use it directly.
 - No directory → `AskUserQuestion`:
-  - "px-torre-core" — `/home/augustobendlin/code/px-torre-core`
+  - "px-torre-core" — `~/Code/PX-Center/Torre/`
   - "Current directory" — the working directory
   - (the user can also type a custom path via "Other")
 
