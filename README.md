@@ -1,41 +1,41 @@
 # skills
 
-Minhas [Agent Skills](https://github.com/vercel-labs/skills) — repo privado, consumido pelo CLI `skills`.
+My [Agent Skills](https://github.com/vercel-labs/skills). Private repo, consumed by the `skills` CLI.
 
-## Instalar
+## Install
 
 ```bash
-npx skills add henrilhos/skills                    # todas as skills
-npx skills add henrilhos/skills --skill commit     # só uma
-npx skills use henrilhos/skills --skill pr-status  # usa sem instalar
-npx skills update                                  # atualiza as já instaladas
-npx skills ls                                      # lista o que está instalado
+npx skills add henrilhos/skills                    # all skills
+npx skills add henrilhos/skills --skill commit     # just one
+npx skills use henrilhos/skills --skill pr-status  # use without installing
+npx skills update                                  # update installed skills
+npx skills ls                                      # list what's installed
 ```
 
-Repo privado funciona sem configuração extra: o CLI reaproveita a autenticação de git que já existe na máquina (credential helper → GitHub CLI → SSH). Se precisar forçar, exporte `GITHUB_TOKEN` ou `GH_TOKEN`.
+Private repos work without extra setup. The CLI reuses whatever git auth is already on the machine (credential helper, GitHub CLI, SSH). To force a specific method, export `GITHUB_TOKEN` or `GH_TOKEN`.
 
 ## Skills
 
-| Skill | O que faz |
+| Skill | What it does |
 | --- | --- |
-| `back-review` | Review de PR de backend (PHP/Laravel), por ID ou URL do PR |
-| `commit` | Commits em conventional commits, agrupados por unidade lógica |
-| `create-jira-task` | Cria issues no Jira no projeto DEV, com o campo obrigatório `customfield_11412` |
-| `front-review` | Review de qualidade de frontend (TS/React): segurança, performance e arquitetura |
-| `open-pr` | Abre PR interativo com o template do repo preenchido |
-| `pr-status` | PRs abertos do time agrupados por coluna do Jira, formatado para o Teams |
-| `update-branch` | Atualiza a branch atual com a base via merge, resolve conflitos, valida e dá push |
+| `back-review` | Review a backend PR (PHP/Laravel), by ID or PR URL |
+| `commit` | Conventional commits, grouped by logical unit |
+| `create-jira-task` | Create Jira issues in the DEV project, filling the required `customfield_11412` field |
+| `front-review` | Frontend quality review (TS/React): security, performance, architecture |
+| `open-pr` | Open an interactive PR with the repo template filled in |
+| `pr-status` | Team's open PRs grouped by Jira column, formatted for Teams |
+| `update-branch` | Update the current branch from base via merge, resolve conflicts, validate, push |
 
 ## Layout
 
 ```
-skills/<nome>/SKILL.md
+skills/<name>/SKILL.md
 ```
 
-Um diretório por skill, cada um com `SKILL.md` (frontmatter `name` + `description`, corpo em markdown). É um dos layouts que o CLI descobre automaticamente.
+One directory per skill, each with a `SKILL.md` (frontmatter `name` + `description`, markdown body). It's one of the layouts the CLI auto-discovers.
 
-## Notas
+## Notes
 
-- Todas as skills têm `user-invocable: true`, então continuam acessíveis como `/<nome>` no Claude Code — é assim que `back-review`, `commit`, `front-review`, `open-pr`, `pr-status` e `update-branch` viviam antes, como slash commands em `~/.claude/commands/`.
-- **`skills update` apaga o diretório da skill e recopia.** Qualquer arquivo que uma skill escreva dentro do próprio diretório é destruído no update, inclusive o que estiver no `.gitignore` — verificado na prática, não é teoria. Skill que precise guardar estado tem que escrever fora de `~/.claude/skills/<nome>/`.
-- `front-review` usa a sintaxe `` !`comando` `` de injeção de contexto, herdada de quando era slash command. Se em algum momento ela deixar de ser expandida, o agente ainda lê a instrução — só perde o pré-cálculo da lista de arquivos.
+- Every skill has `user-invocable: true`, so they're still reachable as `/<name>` in Claude Code, the same way `back-review`, `commit`, `front-review`, `open-pr`, `pr-status`, and `update-branch` worked before, as slash commands in `~/.claude/commands/`.
+- `skills update` deletes the skill's directory and recopies it. Any file a skill writes inside its own directory gets destroyed on update, including anything in `.gitignore`. I checked this in practice, it's not theoretical. A skill that needs to keep state has to write outside `~/.claude/skills/<name>/`.
+- `front-review` uses the `` !`command` `` context-injection syntax, inherited from when it was a slash command. If that ever stops being expanded, the agent still reads the instruction, it just loses the precomputed file list.
