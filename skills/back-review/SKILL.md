@@ -1,247 +1,169 @@
 ---
 name: back-review
-description: "Review de código de Pull Requests do backend (PHP/Laravel). Use com ID do PR ou URL. Ex: /back-review 4359 ou /back-review 4359 /caminho/do/repo"
+description: "Code review for backend Pull Requests (PHP/Laravel). Use with a PR ID or URL. Ex: /back-review 4359 or /back-review 4359 /path/to/repo"
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob
 argument-hint: "[pr-id] | [pr-url]"
 ---
 
-# Code Quality Review
+# Backend code review
 
-Skill para realizar code review de Pull Requests focado em código backend (PHP/Laravel).
-
-## Uso
+## Usage
 
 ```
-/back-review <PR_ID>
-/back-review <PR_ID> <DIRETÓRIO>
-/back-review <PR_URL>
-/back-review <PR_URL> <DIRETÓRIO>
+/back-review <PR_ID | PR_URL> [DIRECTORY]
 ```
 
-### Exemplos
+Without `DIRECTORY`, ask which repository to use before running any `gh` command.
 
-- `/back-review 4359` - Pergunta qual repositório usar
-- `/back-review 4359 /home/user/code/px-torre-core` - Usa o diretório especificado
-- `/back-review https://github.com/px-center/px-torre-core/pull/4359` - Pergunta qual repositório usar
+## 1. Resolve the repository
 
-## Protocolo de Seleção do Repositório
+- Directory given as an argument → use it directly.
+- No directory → `AskUserQuestion`:
+  - "px-torre-core" — `/home/augustobendlin/code/px-torre-core`
+  - "Current directory" — the working directory
+  - (the user can also type a custom path via "Other")
 
-### IMPORTANTE: Antes de executar qualquer comando `gh`, você DEVE determinar o diretório do repositório.
-
-**Regra de seleção:**
-
-1. **Se o diretório foi passado nos argumentos** → Use o diretório especificado
-2. **Se NÃO foi passado diretório** → Use a ferramenta `AskUserQuestion` para perguntar:
-
-```
-Pergunta: "Qual repositório deseja usar para o code review?"
-Opções:
-  - "px-torre-core" (descrição: "Repositório principal do backend - /home/augustobendlin/code/px-torre-core")
-  - "Diretório atual" (descrição: "Usar o diretório de trabalho atual")
-```
-
-**Nota:** O usuário pode selecionar "Other" para digitar um caminho customizado.
-
-**Mapeamento de respostas:**
-
-- Se escolher "px-torre-core" → use `/home/augustobendlin/code/px-torre-core`
-- Se escolher "Diretório atual" → use o diretório de trabalho atual
-- Se escolher "Other" e digitar um caminho → use o caminho digitado
-
-## Configuração Importante
-
-**SEMPRE** use `GITHUB_TOKEN=` antes de comandos `gh` para garantir autenticação correta.
-**SEMPRE** execute os comandos dentro do diretório do repositório selecionado usando `cd <DIRETÓRIO> &&`.
+Once the directory is resolved, run this once, before any other command:
 
 ```bash
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr view <PR_ID>
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr diff <PR_ID>
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr checks <PR_ID>
+cd <DIRECTORY> && unset GITHUB_TOKEN
 ```
 
-## Protocolo de Review
+Every `gh` command from here on runs in that same shell — no repeating `cd` or `GITHUB_TOKEN=`.
 
-### 1. Coleta de Informações
-
-Execute os seguintes comandos para obter contexto completo do PR (substitua `<DIRETÓRIO>` pelo caminho selecionado):
+## 2. Collect the PR
 
 ```bash
-# Informações gerais do PR
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr view <PR_ID> --json title,body,author,baseRefName,headRefName,files,additions,deletions,changedFiles,reviews,comments,state
-
-# Diff completo do PR
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr diff <PR_ID>
-
-# Status dos checks (CI/CD)
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr checks <PR_ID>
-
-# Comentários existentes (extraia owner/repo do repositório)
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh api repos/{owner}/{repo}/pulls/<PR_ID>/comments
+gh pr view <PR_ID> --json title,body,author,baseRefName,headRefName,files,additions,deletions,changedFiles,reviews,comments,state
+gh pr diff <PR_ID>
+gh pr checks <PR_ID>
+gh api repos/{owner}/{repo}/pulls/<PR_ID>/comments   # owner/repo from the directory's remote
 ```
 
-### 2. Checklist de Análise Backend
+Read the full diff before moving on — feedback only covers what was actually read.
 
-#### Qualidade de Código PHP
+## 3. Review against the checklist
 
-- [ ] **Nomenclatura**: Variáveis, métodos e classes seguem convenções do projeto (camelCase para variáveis/métodos, PascalCase para classes)
-- [ ] **Type hints**: Parâmetros e retornos com tipos declarados quando possível
-- [ ] **Formatação**: Código segue configuração do Pint (Laravel preset, braces na mesma linha)
-- [ ] **Imports**: Organizados e sem imports não utilizados
-- [ ] **Comentários**: Código autoexplicativo, sem comentários óbvios ou desatualizados
-- [ ] **Carbon::now()**: Linhas novas ou editadas devem usar `Carbon::now()` em vez do helper `now()`. Não validar código legado não tocado no PR — apenas linhas adicionadas ou modificadas. Se uma linha modificada usa `now()`, sugerir atualização para `Carbon::now()`
+#### PHP code quality
 
-#### Padrões Laravel
+- **Naming**: camelCase for variables/methods, PascalCase for classes.
+- **Type hints**: parameters and return types declared where possible.
+- **Formatting**: follows Pint (Laravel preset: braces on the same line, short array syntax `[]`, ordered imports, no trailing comma on multiline).
+- **Imports**: organized, no unused imports.
+- **Comments**: code is self-explanatory; no obvious or stale comments.
+- **`Carbon::now()`**: new or edited lines must use `Carbon::now()`, not the `now()` helper. Only applies to lines added/modified in the PR — untouched legacy code doesn't count.
 
-- [ ] **Eloquent**: Uso correto de relacionamentos, evitar N+1 queries
-- [ ] **Validação**: Form Requests ou validação inline quando apropriado
-- [ ] **Services**: Lógica de negócio em Services, não em Controllers
-- [ ] **Repositories**: Acesso a dados através de Repositories quando existe o padrão no módulo
-- [ ] **Jobs/Events**: Operações assíncronas quando necessário
-- [ ] **Migrations**: Reversíveis (método down), tipos corretos de colunas
+#### Laravel patterns
 
-#### Segurança
+- **Eloquent**: correct relationships, no N+1.
+- **Validation**: Form Requests or inline validation, as fits the case.
+- **Services**: business logic in Services, not Controllers.
+- **Repositories**: data access through a Repository when the module already follows that pattern.
+- **Jobs/Events**: async operations where it makes sense.
+- **Migrations**: reversible (`down` method), correct column types.
 
-- [ ] **SQL Injection**: Uso de query builder/Eloquent, não queries raw sem binding
-- [ ] **Mass Assignment**: Campos $fillable/$guarded definidos corretamente
-- [ ] **Autorização**: Policies/Gates aplicados quando necessário
-- [ ] **Dados sensíveis**: Sem credenciais, tokens ou dados sensíveis hardcoded
-- [ ] **Validação de entrada**: Input do usuário sempre validado
+#### Security
+
+- **SQL injection**: query builder/Eloquent, never a raw query without binding.
+- **Mass assignment**: `$fillable`/`$guarded` defined.
+- **Authorization**: Policies/Gates applied where needed.
+- **Sensitive data**: no hardcoded credentials, tokens, or secrets.
+- **Input validation**: all user input validated.
 
 #### Performance
 
-- [ ] **Queries**: Sem N+1, uso de eager loading (with/load)
-- [ ] **Cache**: Uso apropriado quando há dados frequentemente acessados
-- [ ] **Indexes**: Migrations adicionam indexes para colunas de busca/filtro
-- [ ] **Paginação**: Listagens grandes com paginação
+- **Queries**: no N+1, eager loading (`with`/`load`) applied.
+- **Cache**: used where data is accessed frequently.
+- **Indexes**: migrations add an index for search/filter columns.
+- **Pagination**: large listings paginated.
 
-#### Testes
+#### Tests
 
-- [ ] **Cobertura**: Testes para novos métodos/funcionalidades
-- [ ] **Casos de borda**: Testes para edge cases
-- [ ] **Fixtures**: Factories e seeders quando necessário
+- Coverage for new methods/features.
+- Edge cases covered.
+- Factories/seeders when the test needs a fixture.
 
-#### Arquitetura do Projeto
+#### Project architecture
 
-- [ ] **Localização**: Arquivo no diretório correto (Services/, Models/, etc.)
-- [ ] **Responsabilidade única**: Classes/métodos com propósito bem definido
-- [ ] **DTOs**: Uso de DTOs para transferência de dados complexos
-- [ ] **Enums**: Uso de Enums para valores constantes (PHP 8.1+)
+- File in the right directory (`Services/`, `Models/`, etc.).
+- Single responsibility per class/method.
+- DTOs for complex data transfer.
+- Enums for constant values (PHP 8.1+).
 
-### 3. Análise de Impacto
+#### Static analysis
 
-Verificar:
+- PHPStan level 0 (with baseline) on `app/` — level 0 doesn't catch much; the only bar is not regressing the baseline.
 
-- Quais módulos/features são afetados
-- Se há breaking changes
-- Se a migration é segura para rollback
-- Dependências entre PRs (se houver)
+## 4. Assess impact
 
-### 4. Formato do Feedback
+Affected modules/features, breaking changes, migration rollback safety, dependencies between PRs.
 
-> **REGRA OBRIGATÓRIA — sempre cite o arquivo:** Toda sugestão, problema crítico ou ressalva DEVE começar com o cabeçalho `### caminho/do/arquivo.php:linha — título`, identificando o arquivo (e a linha quando possível) onde a inconsistência foi encontrada. Isso vale inclusive para pontos que não estão no diff (ex.: model relacionado, trait herdada) — nesse caso cite o arquivo de origem do fato. **Nunca** descreva um ponto de review sem dizer em qual arquivo ele está.
+## 5. Report
 
-Estruture o review da seguinte forma:
+> **Mandatory rule:** every suggestion, critical issue, or caveat opens with `### path/to/file.php:line — title`, naming the file (and line, when possible) — including points outside the diff (a related model, an inherited trait), citing the file they come from. No review point without a file.
+
+When a security or bug point competes for attention with a style point, give the security/bug point priority in the review.
+
+Structure the review like this:
 
 ````markdown
-## 📋 Resumo do PR
+## 📋 PR Summary
 
-**Título**: [título do PR]
-**Autor**: [autor]
+**Title**: [PR title]
+**Author**: [author]
 **Branch**: [head] → [base]
-**Arquivos alterados**: [número]
-**Adições/Remoções**: +[additions] / -[deletions]
+**Files changed**: [number]
+**Additions/Deletions**: +[additions] / -[deletions]
 
-## ✅ Pontos Positivos
+## ✅ Strengths
 
-- [Lista do que está bem implementado]
+- [What's well implemented]
 
-## ⚠️ Sugestões de Melhoria
+## ⚠️ Suggestions
 
-### [arquivo:linha] - [título da sugestão]
+### [file:line] - [suggestion title]
 
-**Problema**: [descrição]
+**Issue**: [description]
 
-**Sugestão**:
+**Suggestion**:
 
 ```php
-// código sugerido
+// suggested code
 ```
-````
 
-**Motivo**: [justificativa]
+**Reason**: [justification]
 
-## 🔴 Problemas Críticos (se houver)
+## 🔴 Critical Issues (if any)
 
-### [arquivo:linha] - [título do problema]
+### [file:line] - [issue title]
 
-**Problema**: [descrição do problema]
-**Impacto**: [qual o risco]
-**Correção necessária**: [o que precisa ser corrigido]
+**Issue**: [issue description]
+**Impact**: [the risk]
+**Required fix**: [what needs to be fixed]
 
 ## 📊 Checklist
 
-- [x] Qualidade de código
-- [x] Padrões Laravel
-- [ ] Testes (pendente)
-- [x] Segurança
+- [x] Code quality
+- [x] Laravel patterns
+- [ ] Tests (pending)
+- [x] Security
 
-## 🎯 Veredicto
+## 🎯 Verdict
 
-- [ ] ✅ **Aprovado** - Pronto para merge
-- [ ] 🔄 **Aprovado com ressalvas** - Pode fazer merge, mas considere as sugestões
-- [ ] ⏳ **Mudanças solicitadas** - Necessário ajustes antes do merge
-- [ ] 🚫 **Bloqueado** - Problemas críticos que impedem o merge
-
+- [ ] ✅ **Approved** - Ready to merge
+- [ ] 🔄 **Approved with caveats** - Can merge, but consider the suggestions
+- [ ] ⏳ **Changes requested** - Needs adjustments before merge
+- [ ] 🚫 **Blocked** - Critical issues preventing merge
 ````
 
-## Comandos Úteis Durante o Review
-
-Lembre-se de sempre usar `cd <DIRETÓRIO> &&` antes dos comandos:
+## Reference: extra gh commands
 
 ```bash
-# Ver arquivo específico na branch do PR
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr diff <PR_ID> -- <caminho/do/arquivo>
-
-# Ver checks do CI
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr checks <PR_ID>
-
-# Listar arquivos alterados
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr view <PR_ID> --json files -q '.files[].path'
-
-# Ver reviews existentes
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr view <PR_ID> --json reviews
-
-# Adicionar comentário no PR
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr comment <PR_ID> --body "Comentário do review"
-
-# Aprovar PR
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr review <PR_ID> --approve --body "LGTM! ✅"
-
-# Solicitar mudanças
-cd <DIRETÓRIO> && GITHUB_TOKEN= gh pr review <PR_ID> --request-changes --body "Por favor, verifique..."
-````
-
-## Padrões de Código do Projeto
-
-### Pint (Formatação)
-
-- Preset: Laravel
-- Braces: mesma linha (Allman style para functions/classes)
-- Array syntax: short (`[]` em vez de `array()`)
-- Imports: ordenados
-- Sem trailing comma em multiline
-
-### PHPStan
-
-- Level: 0 (com baseline)
-- Paths: app/
-
-## Notas
-
-- Sempre leia o código completo do diff antes de dar feedback
-- Considere o contexto do projeto e padrões já estabelecidos
-- Seja construtivo e específico nas sugestões
-- Priorize problemas de segurança e bugs sobre estilo
-- Verifique se testes existentes continuam passando
-- **Todo ponto de review deve indicar o arquivo (e linha) onde foi encontrado** — sem exceção, mesmo para arquivos fora do diff
+gh pr diff <PR_ID> -- <path/to/file>                      # diff of one file
+gh pr view <PR_ID> --json files -q '.files[].path'         # list changed files
+gh pr view <PR_ID> --json reviews                          # existing reviews
+gh pr comment <PR_ID> --body "Review comment"
+gh pr review <PR_ID> --approve --body "LGTM! ✅"
+gh pr review <PR_ID> --request-changes --body "Please check..."
+```
