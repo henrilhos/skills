@@ -27,6 +27,7 @@ Private repos work without extra setup. The CLI reuses whatever git auth is alre
 | `pr-status` | Team's open PRs grouped by Jira column, formatted for Teams |
 | `unslop` | Cut AI tells from any writing and add human voice |
 | `update-branch` | Update the current branch from base via merge, resolve conflicts, validate, push |
+| `writing-for-agents` | Reference for writing skills, `AGENTS.md`, or `CLAUDE.md` |
 
 ## Layout
 
