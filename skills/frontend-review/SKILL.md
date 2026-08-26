@@ -1,5 +1,5 @@
 ---
-name: front-review
+name: frontend-review
 description: "Review de código de qualidade do frontend (TypeScript/React) com análise de segurança, performance e arquitetura. Use com caminho de arquivo, hash de commit ou --full para comparar com a branch base."
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob

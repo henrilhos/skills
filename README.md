@@ -18,11 +18,11 @@ Private repos work without extra setup. The CLI reuses whatever git auth is alre
 
 | Skill | What it does |
 | --- | --- |
-| `back-review` | Review a backend PR (PHP/Laravel), by ID or PR URL |
+| `backend-review` | Review a backend PR (PHP/Laravel), by ID or PR URL |
 | `commit` | Conventional commits, grouped by logical unit |
 | `create-jira-task` | Create Jira issues in the DEV project, filling the required `customfield_11412` field |
 | `deslop` | Remove AI-generated code slop and clean up code style against the diff |
-| `front-review` | Frontend quality review (TS/React): security, performance, architecture |
+| `frontend-review` | Frontend quality review (TS/React): security, performance, architecture |
 | `open-pr` | Open an interactive PR with the repo template filled in |
 | `pr-status` | Team's open PRs grouped by Jira column, formatted for Teams |
 | `unslop` | Cut AI tells from any writing and add human voice |
@@ -39,6 +39,6 @@ One directory per skill, each with a `SKILL.md` (frontmatter `name` + `descripti
 
 ## Notes
 
-- Every skill has `user-invocable: true`, so they're still reachable as `/<name>` in Claude Code, the same way `back-review`, `commit`, `front-review`, `open-pr`, `pr-status`, and `update-branch` worked before, as slash commands in `~/.claude/commands/`.
+- Every skill has `user-invocable: true`, so they're still reachable as `/<name>` in Claude Code, the same way `back-review`, `commit`, `front-review`, `open-pr`, `pr-status`, and `update-branch` worked before, as slash commands in `~/.claude/commands/` (`back-review` and `front-review` have since been renamed to `backend-review` and `frontend-review`).
 - `skills update` deletes the skill's directory and recopies it. Any file a skill writes inside its own directory gets destroyed on update, including anything in `.gitignore`. I checked this in practice, it's not theoretical. A skill that needs to keep state has to write outside `~/.claude/skills/<name>/`.
-- `front-review` uses the `` !`command` `` context-injection syntax, inherited from when it was a slash command. If that ever stops being expanded, the agent still reads the instruction, it just loses the precomputed file list.
+- `frontend-review` uses the `` !`command` `` context-injection syntax, inherited from when it was a slash command. If that ever stops being expanded, the agent still reads the instruction, it just loses the precomputed file list.

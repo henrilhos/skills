@@ -1,6 +1,6 @@
 ---
-name: back-review
-description: "Code review for backend Pull Requests (PHP/Laravel). Use with a PR ID or URL. Ex: /back-review 4359 or /back-review 4359 /path/to/repo"
+name: backend-review
+description: "Code review for backend Pull Requests (PHP/Laravel). Use with a PR ID or URL. Ex: /backend-review 4359 or /backend-review 4359 /path/to/repo"
 user-invocable: true
 allowed-tools: Read, Bash, Grep, Glob
 argument-hint: "[pr-id] | [pr-url]"
@@ -11,7 +11,7 @@ argument-hint: "[pr-id] | [pr-url]"
 ## Usage
 
 ```
-/back-review <PR_ID | PR_URL> [DIRECTORY]
+/backend-review <PR_ID | PR_URL> [DIRECTORY]
 ```
 
 Without `DIRECTORY`, ask which repository to use before running any `gh` command.
