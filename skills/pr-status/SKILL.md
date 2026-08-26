@@ -1,18 +1,15 @@
 ---
 name: pr-status
-description: "Lista PRs abertos do time agrupados por coluna do Jira (pt-br) para compartilhar no Teams"
+description: "Lists the team's open PRs grouped by Jira column, in Brazilian Portuguese, ready to paste into Teams"
 user-invocable: true
 argument-hint: "[--author <handle>]... [--repo <owner>/<name>]..."
 ---
 
-# Status de PRs abertos do time, agrupado por coluna do Jira
+# Team's open PR status, grouped by Jira column
 
-Gera uma mensagem em pt-br, pronta para colar no Teams, listando os PRs abertos
-do time agrupados pela coluna do board do Jira em que a tarefa correspondente
-está. A mensagem é apenas impressa no chat — nada é salvo em arquivo nem
-copiado para clipboard.
+Prints a status message in the chat, ready to paste into Teams. The message itself is Brazilian Portuguese; nothing is saved to a file or copied to the clipboard — the user copies it from the chat UI.
 
-## Uso
+## Usage
 
 ```
 /pr-status
@@ -21,167 +18,170 @@ copiado para clipboard.
 /pr-status --author <handle> --repo <owner>/<name> --author <outro>
 ```
 
-Sem argumentos usa os defaults abaixo. `--author` e `--repo` são repetíveis e
-**somam** aos defaults (não substituem).
+No arguments uses the defaults below. `--author` and `--repo` are repeatable and **add to** the defaults, never replace them.
 
 ## Defaults
 
-### Autores (handle GitHub → nome para exibição)
+### Authors (GitHub handle → display name)
 
-- `henrilhos` → Henrique de Castilhos
-- `matheusbusarellopx` → Matheus Busarello
-- `AugustoBendlin` → Augusto Bendlin
-- `AbraoDaniel` → Daniel Abrão
-- `paulovictor237` → Paulo Victor Duarte
-- `luiza-liebl` → Luiza Liebl
+| Handle               | Name                  |
+| -------------------- | --------------------- |
+| `henrilhos`          | Henrique de Castilhos |
+| `matheusbusarellopx` | Matheus Busarello     |
+| `AugustoBendlin`     | Augusto Bendlin       |
+| `AbraoDaniel`        | Daniel Abrão          |
+| `lexdmm`             | Daniel Menescal       |
+| `luiza-liebl`        | Luiza Liebl           |
 
-### Repos (nome completo → nome curto para exibição)
+### Repos (full name → short display name)
 
-- `px-center/px-painel` → Painel
-- `px-center/px-torre-core` → Torre
-- `px-center/px-mobile-motorista` → Mobile
-- `px-center/px-docs` → Docs
-- `px-center/px-event-store` → Event Store
+| Repo                            | Short name  |
+| ------------------------------- | ----------- |
+| `px-center/px-painel`           | Painel      |
+| `px-center/px-torre-core`       | Torre       |
+| `px-center/px-mobile-motorista` | Mobile      |
+| `px-center/px-docs`             | Docs        |
+| `px-center/px-event-store`      | Event Store |
 
-Para handles ou repos passados via `--author` / `--repo` que não estejam nessa
-tabela: usar o próprio handle como nome de exibição e o nome do repo
-(sem o owner) como nome curto.
+A handle or repo passed via `--author`/`--repo` that isn't in these tables uses the raw handle, or the repo name without its owner, as its display name — never guess one.
 
-## O que este comando faz
+## 1. Parse arguments
 
-1. **Parse de `$ARGUMENTS`**: extrai flags `--author <handle>` e
-   `--repo <owner>/<name>` (ambas repetíveis). Combina com os defaults para
-   formar a lista final de autores e repos.
+Extract every `--author <handle>` and `--repo <owner>/<name>` from `$ARGUMENTS` (both repeatable) and merge with the Defaults above into the final author list and repo list.
 
-2. **Busca de PRs abertos** via `gh search prs` — uma chamada por autor, com
-   todos os repos juntos via `--repo` repetido. Executar todas as chamadas
-   **em paralelo** numa mesma mensagem (vários `Bash` tools de uma vez):
+## 2. Fetch open PRs
 
-   ```bash
-   gh search prs \
-     --repo <repo1> --repo <repo2> ... \
-     --state open --author <handle> \
-     --json number,title,author,repository,url --limit 100
-   ```
+One `gh search prs` call per author, with all repos passed together via repeated `--repo`. Run every author's call **in parallel** — multiple `Bash` tool calls in the same message:
 
-3. **Extração de chaves Jira dos títulos dos PRs** com o regex
-   `\[?([A-Z]{2,5}-\d+)\]?`. Cobre formatos comuns (`DEV-6345`, `FFC-123`,
-   `QUAL-1234`). PRs sem match vão para o bucket "Sem chave JIRA".
+```bash
+gh search prs \
+  --repo <repo1> --repo <repo2> ... \
+  --state open --author <handle> \
+  --json number,title,author,repository,url --limit 100
+```
 
-4. **Enriquecimento dos PRs via uma única chamada GraphQL** —
-   `gh api graphql` com aliased queries por PR, uma chamada para todos. Para
-   cada PR montar um alias `pr_<idx>: repository(owner: "...", name: "...") {
-pullRequest(number: N) { ... } }` consultando estes campos:
-   - `isDraft`
-   - `mergeable` (`MERGEABLE` / `CONFLICTING` / `UNKNOWN`)
-   - `reviewDecision` (`APPROVED` / `CHANGES_REQUESTED` / `REVIEW_REQUIRED` / `null`)
-   - `reviews(last: 100) { nodes { state author { login } submittedAt } }`
-     para calcular approves únicos (dedup por `author.login`, considerar
-     somente o review mais recente de cada reviewer; contar quantos têm
-     `state == APPROVED`)
+## 3. Extract Jira keys
 
-   Indexar os resultados pelo par `(owner/repo, number)` para juntar com a
-   lista do passo 2.
+Match each PR title against `\[?([A-Z]{2,5}-\d+)\]?` — covers `DEV-6345`, `FFC-123`, `QUAL-1234`. A title with no match goes into the "Sem chave JIRA" bucket.
 
-   > Nota: `mergeStateStatus` foi propositalmente omitido nesta iteração
-   > (BEHIND/BLOCKED/UNSTABLE adicionam ruído e podem voltar depois).
+## 4. Enrich via GraphQL
 
-5. **Lookup do status no Jira via MCP `claude.ai Atlassian`**:
-   - Chamar `mcp__claude_ai_Atlassian__getAccessibleAtlassianResources`
-     para obter o `cloudId`.
-   - Chamar `mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql` com:
-     - `cloudId`: o retornado acima
-     - `jql`: `key in (DEV-X, DEV-Y, ...)` (todas as chaves de uma vez)
-     - `fields`: `["summary", "status"]`
-     - `maxResults`: `100`
-   - Se a chamada do MCP retornar erro de autenticação/expiração, **parar e
-     pedir** ao usuário para rodar `/mcp` e reautenticar
-     `claude.ai Atlassian (2)` antes de continuar. Não tentar contornar.
-   - Se uma chave da JQL não retornar issue (foi mencionada num PR mas não
-     existe / sem permissão), tratar como "Sem status no Jira".
+Single `gh api graphql` call, aliased per PR — not one call per PR. For each PR add an alias:
 
-6. **Emoji da coluna** vem do `statusCategory.key` do Jira (não hardcoded por
-   nome de coluna — funciona para qualquer board):
-   - `indeterminate` → 🟡
-   - `new` → 🔵
-   - `done` → 🟢
-   - sem status / sem chave → ⚪
+```graphql
+pr_<idx>: repository(owner: "...", name: "...") {
+  pullRequest(number: N) { ... }
+}
+```
 
-7. **Tradução do nome da coluna para pt-br** (defaults; fallback = nome
-   original do Jira se não houver tradução cadastrada):
-   - `Code Review` → `Revisão de Código`
-   - `TESTING.` / `Testing` → `Em Teste`
-   - `Ready to Test` → `Pronto para Teste`
-   - `Waiting Deploy` → `Aguardando Deploy`
-   - `In Progress` → `Em Andamento`
-   - `Done` → `Concluído`
+querying:
 
-8. **Badges do PR** (construídos a partir do enriquecimento do passo 4 —
-   concatenar com `·` na ordem abaixo, omitindo os que não se aplicam):
-   - **Draft**: `🚧 draft` se `isDraft == true`
-   - **Approvals**: `✅ N` onde N é a contagem de approves únicos (calculada
-     no passo 4). Omitir se N == 0.
-   - **Changes requested**: `🔴 changes requested` se `reviewDecision ==
-"CHANGES_REQUESTED"`
-   - **Conflito**: `⚠️ conflitos` se `mergeable == "CONFLICTING"`
+- `isDraft`
+- `mergeable` (`MERGEABLE` / `CONFLICTING` / `UNKNOWN`)
+- `reviewDecision` (`APPROVED` / `CHANGES_REQUESTED` / `REVIEW_REQUIRED` / `null`)
+- `reviews(last: 100) { nodes { state author { login } submittedAt } }` — to count unique approvals: dedup by `author.login`, keep only each reviewer's most recent review, count how many are `APPROVED`
 
-   Se nenhum badge se aplica, não adicionar sufixo no bullet.
+Index results by `(owner/repo, number)` to join with the list from step 2.
 
-9. **Agrupamento e ordenação**:
-   - **Por coluna**, nesta ordem:
-     1. Revisão de Código (🟡)
-     2. Pronto para Teste (🔵)
-     3. Em Teste (🟡)
-     4. Aguardando Deploy (🔵)
-     5. Outras colunas, ordenadas por categoria (🟡 antes de 🔵 antes de 🟢)
-     6. Sem status no Jira (⚪)
-     7. Sem chave JIRA (⚪)
-   - **Dentro de cada coluna**, agrupar por chave Jira (ordem alfanumérica
-     da chave). Para cada chave, mostrar:
-     - Negrito: `**CHAVE** — <summary do Jira> (<nome do autor>)`
-     - Bullets com cada PR daquela chave: `- <RepoCurto>: <url>` seguido dos
-       badges do passo 8 (se houver)
-   - O `<nome do autor>` é o do assignee do Jira se houver mapeamento, senão
-     o do autor do primeiro PR encontrado.
+`mergeStateStatus` is deliberately left out — `BEHIND`/`BLOCKED`/`UNSTABLE` would add noise with no clear use yet; revisit if that changes.
 
-10. **Formato final da mensagem** (imprimir no chat, exatamente assim):
+## 5. Look up Jira status
 
-    ```
-    **Status dos PRs abertos** 📋
+Deferred — load schemas before calling:
 
-    **<emoji> <Coluna pt-br>**
+```
+ToolSearch("select:mcp__claude_ai_Atlassian__getAccessibleAtlassianResources,mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql")
+```
 
-    **CHAVE** — <summary do Jira> (<nome>)
-    - <RepoCurto>: <url>  ·  <badges>
-    - <RepoCurto>: <url>  ·  <badges>
+- `getAccessibleAtlassianResources` → `cloudId`.
+- `searchJiraIssuesUsingJql`:
+  - `cloudId`: from above
+  - `jql`: `key in (DEV-X, DEV-Y, ...)` — every key at once
+  - `fields`: `["summary", "status"]`
+  - `maxResults`: `100`
+- Auth/expiration error from the MCP call → **stop and ask** the user to run `/mcp` and re-authenticate `claude.ai Atlassian (2)`. Don't work around it.
+- A key with no matching issue (mentioned in a PR title but nonexistent, or no permission) → "Sem status no Jira" bucket, not an error.
 
-    **CHAVE** — <summary do Jira> (<nome>)
-    - <RepoCurto>: <url>
+## 6. Column emoji and pt-br name
 
-    **<emoji> <próxima coluna>**
+Emoji from `statusCategory.key`, not the column name — this works for any board:
 
-    ...
+| `statusCategory.key` | Emoji |
+| -------------------- | ----- |
+| `indeterminate`      | 🟡    |
+| `new`                | 🔵    |
+| `done`               | 🟢    |
+| no status / no key   | ⚪    |
 
-    **⚪ Sem chave JIRA**
-    - <título do PR> (<nome>): <url>  ·  <badges>
-    ```
+pt-br translation of the column name (fallback: the Jira column's own name, if it's not in this table):
 
-    - Linha em branco entre colunas e entre chaves Jira dentro da mesma coluna.
-    - Se uma coluna estiver vazia, omitir o cabeçalho dela.
-    - Se nenhum PR for encontrado no total, imprimir apenas:
-      `Nenhum PR aberto encontrado para o time.`
-    - Separador entre URL e badges: `·` (dois espaços, middle dot, dois
-      espaços). Sem badges, omitir o separador.
+| Jira column            | pt-br             |
+| ---------------------- | ----------------- |
+| `Code Review`          | Revisão de Código |
+| `TESTING.` / `Testing` | Em Teste          |
+| `Ready to Test`        | Pronto para Teste |
+| `Waiting Deploy`       | Aguardando Deploy |
+| `In Progress`          | Em Andamento      |
+| `Done`                 | Concluído         |
 
-## Notas importantes
+## 7. Build PR badges
 
-- A mensagem é **apenas exibida no chat**. Não salvar arquivo, não rodar
-  `pbcopy`. O usuário copia da própria UI.
-- Executar as chamadas `gh search prs` (uma por autor) em paralelo.
-- Não inventar status do Jira — se vier vazio, usar o bucket "Sem status no
-  Jira" com ⚪.
-- Pressupostos do ambiente:
-  - `gh` autenticado com acesso aos repos
-  - MCP `claude.ai Atlassian` conectado
-- Para autores/repos extras não cadastrados, mostrar o handle/nome de repo
-  cru — não tentar deduzir display names.
+From the step 4 enrichment, concatenate with `·` in this order, omitting any that don't apply. No badges apply → no suffix on the bullet.
+
+1. **Draft**: `🚧 draft` if `isDraft == true`
+2. **Approvals**: `✅ N` (the unique-approval count from step 4); omit if `N == 0`
+3. **Changes requested**: `🔴 changes requested` if `reviewDecision == "CHANGES_REQUESTED"`
+4. **Conflict**: `⚠️ conflitos` if `mergeable == "CONFLICTING"`
+
+## 8. Group and sort
+
+**Column order**:
+
+1. Revisão de Código (🟡)
+2. Pronto para Teste (🔵)
+3. Em Teste (🟡)
+4. Aguardando Deploy (🔵)
+5. Any other column, sorted by category (🟡 before 🔵 before 🟢)
+6. Sem status no Jira (⚪)
+7. Sem chave JIRA (⚪)
+
+**Within a column**, group by Jira key (alphanumeric order). For each key:
+
+- Bold header: `**CHAVE** — <Jira summary> (<name>)`
+- One bullet per PR under that key: `- <ShortRepo>: <url>`, followed by the step 7 badges if any
+
+`<name>` is the Jira assignee's display name when one is mapped, otherwise the author of the first PR found under that key.
+
+## 9. Report
+
+Print, exactly as shown:
+
+```
+**Status dos PRs abertos** 📋
+
+**<emoji> <Coluna pt-br>**
+
+**CHAVE** — <summary do Jira> (<nome>)
+- <RepoCurto>: <url>  ·  <badges>
+- <RepoCurto>: <url>  ·  <badges>
+
+**CHAVE** — <summary do Jira> (<nome>)
+- <RepoCurto>: <url>
+
+**<emoji> <próxima coluna>**
+
+...
+
+**⚪ Sem chave JIRA**
+- <título do PR> (<nome>): <url>  ·  <badges>
+```
+
+- Blank line between columns, and between Jira keys within the same column.
+- An empty column has no header at all.
+- Zero PRs found in total → print only `Nenhum PR aberto encontrado para o time.` and stop there.
+- Separator between the URL and the badges: `·` (two spaces, middle dot, two spaces). No badges → no separator.
+
+## Environment
+
+- `gh` authenticated with access to the repos.
+- MCP `claude.ai Atlassian` connected.
